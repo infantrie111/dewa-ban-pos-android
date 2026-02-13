@@ -14,12 +14,9 @@
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
 
     <application
-        android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
         android:label="DEWA BAN POS"
-        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
         android:usesCleartextTraffic="true"
         tools:targetApi="31">
         
