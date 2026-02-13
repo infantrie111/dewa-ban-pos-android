@@ -71,29 +71,27 @@ public class MainActivity extends AppCompatActivity {
                 BluetoothConnection selectedConnection = BluetoothPrintersConnections.selectFirstPaired();
 
                 if (selectedConnection == null) {
-                    Toast.makeText(this, "Printer Bluetooth tidak ditemukan! Pastikan sudah Paired.", Toast.LENGTH_LONG).show();
+                    runOnUiThread(() -> Toast.makeText(this, "Printer Bluetooth tidak ditemukan! Pastikan sudah Paired.", Toast.LENGTH_LONG).show());
                     return;
                 }
 
-                // 3. Inisialisasi Printer (Lebar 58mm, 32 Karakter per baris)
-                EscPosPrinter printer = new EscPosPrinter(selectedConnection, 203, 58, 32);
+                // 3. (Optional) Inisialisasi visual untuk log (tidak mandatory jika kita connect manual)
+                // EscPosPrinter printer = new EscPosPrinter(selectedConnection, 203, 58, 32); 
+                // KITA KOMEN KARENA KITA PAKAI RAW CONNECTION LANGSUNG
 
-                // 4. Kirim Data (Kita mengirim raw bytes yang sudah disusun di JS)
-                // Library DantSu biasanya menerima formatted text, tapi kita bisa bypass dengan mengirim teks yang sudah di-encode
-                // Trik: Karena kita sudah punya byte commands lengkap (ESC @, dll), 
-                // kita bisa kirim langsung menggunakan write() dari connection socket jika perlu,
-                // tapi library DantSu membungkusnya. 
-                // Cara paling aman pakai library ini adalah membiarkan dia handle formatting, 
-                // TAPI karena Anda sudah hardcode bytes di JS, kita gunakan method printFormattedTextAndCut() dengan Hex wrapper atau kirim raw.
-                
-                // UNTUK KASUS ANDA (Sudah punya Byte Array lengkap dari JS):
-                // Kita gunakan method write() langsung ke socket connection agar commands ESC/POS Anda tidak diubah-ubah library.
-                
+                // 4. Kirim Data RAW BYTES langsung ke Socket
+                // Ini mem-bypass processing library dan mengirim apa adanya dari JS
                 new Thread(() -> {
                     try {
-                        printer.getConnection().connect();
-                        printer.getConnection().write(decodedBytes);
-                        printer.getConnection().disconnect();
+                        // Connect Low Level
+                        selectedConnection.connect();
+                        
+                        // Write Raw Bytes
+                        selectedConnection.write(decodedBytes); 
+                        
+                        // Disconnect
+                        selectedConnection.disconnect();
+                        
                         runOnUiThread(() -> Toast.makeText(this, "Struk Terkirim 🖨️", Toast.LENGTH_SHORT).show());
                     } catch (Exception e) {
                         e.printStackTrace();
