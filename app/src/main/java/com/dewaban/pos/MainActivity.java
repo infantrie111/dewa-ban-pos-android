@@ -52,11 +52,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void checkBluetoothPermissions() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, new String[]{
-                Manifest.permission.BLUETOOTH_CONNECT,
-                Manifest.permission.BLUETOOTH_SCAN
-            }, 1);
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED || 
+                ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, new String[]{
+                    Manifest.permission.BLUETOOTH_CONNECT,
+                    Manifest.permission.BLUETOOTH_SCAN
+                }, 1);
+            }
         }
     }
 
@@ -64,14 +67,32 @@ public class MainActivity extends AppCompatActivity {
     public void printFromJavascript(String base64Data) {
         runOnUiThread(() -> {
             try {
+                // 0. Cek Izin Terlebih Dahulu (PENTING UNTUK ANDROID 12+)
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                        Toast.makeText(this, "Izin Bluetooth belum diberikan! Harap terima izin di layar.", Toast.LENGTH_LONG).show();
+                        checkBluetoothPermissions(); // Minta izin lagi
+                        return;
+                    }
+                }
+
                 // 1. Decode Base64 dari JS menjadi bytes
                 byte[] decodedBytes = Base64.decode(base64Data, Base64.DEFAULT);
 
                 // 2. Cari Printer Bluetooth yang sedang terhubung/paired
-                BluetoothConnection selectedConnection = BluetoothPrintersConnections.selectFirstPaired();
+                BluetoothConnection selectedConnection = null;
+                try {
+                    selectedConnection = BluetoothPrintersConnections.selectFirstPaired();
+                } catch (SecurityException e) {
+                    Toast.makeText(this, "Gagal akses Bluetooth: Izin ditolak.", Toast.LENGTH_LONG).show();
+                    return;
+                } catch (Exception e) {
+                   Toast.makeText(this, "Gagal mencari printer: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                   return;
+                }
 
                 if (selectedConnection == null) {
-                    runOnUiThread(() -> Toast.makeText(this, "Printer Bluetooth tidak ditemukan! Pastikan sudah Paired.", Toast.LENGTH_LONG).show());
+                    Toast.makeText(this, "Printer Bluetooth tidak ditemukan! Pastikan Printer Nyala & sudah Paired di HP.", Toast.LENGTH_LONG).show();
                     return;
                 }
 
@@ -80,18 +101,20 @@ public class MainActivity extends AppCompatActivity {
                 // KITA KOMEN KARENA KITA PAKAI RAW CONNECTION LANGSUNG
 
                 // 4. Kirim Data RAW BYTES langsung ke Socket
-                // Ini mem-bypass processing library dan mengirim apa adanya dari JS
+                BluetoothConnection finalConnection = selectedConnection;
                 new Thread(() -> {
                     try {
                         // Connect Low Level
-                        selectedConnection.connect();
-                        
-                        // Write Raw Bytes
-                        selectedConnection.write(decodedBytes); 
-                        
-                        // Disconnect
-                        selectedConnection.disconnect();
-                        
+                        // Perlu try-catch SecurityException lagi di dalam thread
+                        try {
+                            finalConnection.connect();
+                            finalConnection.write(decodedBytes); 
+                            finalConnection.disconnect();
+                        } catch (SecurityException se) {
+                             runOnUiThread(() -> Toast.makeText(this, "Security Error: Izin Bluetooth hilang.", Toast.LENGTH_LONG).show()); 
+                             return;
+                        }
+
                         runOnUiThread(() -> Toast.makeText(this, "Struk Terkirim 🖨️", Toast.LENGTH_SHORT).show());
                     } catch (Exception e) {
                         e.printStackTrace();
@@ -100,7 +123,7 @@ public class MainActivity extends AppCompatActivity {
                 }).start();
 
             } catch (Exception e) {
-                Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Error General: " + e.getMessage(), Toast.LENGTH_LONG).show();
             }
         });
     }
